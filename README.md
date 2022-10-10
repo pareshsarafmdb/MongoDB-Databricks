@@ -69,6 +69,108 @@ In MongoDB Atlas, click on Charts on the left side
 
 ![Chart](/images/chart.png)
 
+## 4. Analytics, AI/ML using Databricks Notebook
+
+Provision a new Databricks workspace in your preferred cloud provider. 
+
+Once your Databricks cluster is created, navigate to the Databricks cluster with the URL provided. Here you can create a new workspace.
+![New Workspace](/images/databrickssetup1.png)
+
+Once you’ve created your workspace, you will be able to launch it from the URL provided:
+
+![Launch](/images/databrickssetup2.png)
+
+Logging into your workspace brings up the following welcome screen:
+
+![welcome](/images/welcome.png)
+
+In this article, we will create a notebook to read data from MongoDB and use the PySpark libraries to perform the rolling average calculation. We can create our Databricks cluster by selecting the “+ Create Cluster” button from the Clusters menu.
+
+![Create Cluster](/images/createcluster.png)
+
+Note: For the purposes of this walkthrough we chose only one worker and preemptible instances; in a production environment you would want to include more workers and autoscaling.
+Before we create our cluster, we have the option under Advanced Options to provide Spark configuration variables. One of the common settings for Spark config is to define spark.mongodb.output.uri and spark.mongodb.input.uri. Paste the URI you copied in the previous step (Setting up Atlas environment). 
+
+Under Advanced Options in your Databricks workspace, paste the connection string for both the spark.mongodb.output.uri and spark.mongodb.input.uri variables. Note that you will need to update the credentials in the MongoDB Atlas connection string with those you defined previously. For simplicity in your PySpark code, change the default database in the connection string from MyFirstDatabase to sample_supplies. (This is optional, because you can always define the database name via Spark configuration options at runtime.)
+
+![Advanced Options](/images/advancedoptions.png)
+
+### Start the Databricks Cluster
+Now that your Spark config is set, start the cluster.
+Note: If the cluster fails to start, check the event log and view the JSON tab. This is an example error message you will receive if you forgot to increase the SSD storage quota:
+![Start Cluster](/images/startcluster.png)
+
+### Add MongoDB Spark Connector
+Once the cluster is up and running, click on “Install New” from the Libraries menu.
+![Add Spark Connector](/images/addconnector.png)
+
+Here we have a variety of ways to create a library, including uploading a JAR file or downloading the Spark connector from Maven. In this example, we will use Maven and specify org.mongodb.spark:mongo-spark-connector_2.12:3.0.1 as the coordinates.
+
+![Add Spark Connector](/images/addconnector1.png)
+
+Click on “Install” to add our MongoDB Spark Connector library to the cluster.
+Note: If you get the error message “Maven libraries are only supported on Databricks Runtime version 7.3 LTS, and versions >= 8.1,” you can download the MongoDB Spark Connector JAR file from https://repo1.maven.org/maven2/org/mongodb/spark/mongo-spark-connector_2.12/3.0.1/ and then upload it to Databricks by using the Upload menu option.
+
+![Add Spark Connector](/images/addconnector2.png)
+
+### Create a New Notebook
+Click on the Databricks home icon from the menu and select “Create a blank notebook.”
+![Create Notebook](/images/createnotebook.png)
+
+Attach this new notebook to the cluster you created in the previous step.
+![Attach Notebook](/images/attachnotebook.png)
+
+Because we defined our MongoDB connection string as part of the Spark conf cluster configuration, your notebook already has the MongoDB Atlas connection context.
+In the first cell, paste the following:
+
+```
+from pyspark.sql import SparkSession
+
+pipeline="[{'$match': { 'items.name':'printer paper' }}, {'$unwind': { path: '$items' }}, {'$addFields': { totalSale: { \
+	'$multiply': [ '$items.price', '$items.quantity' ] } }}, {'$project': { saleDate:1,totalSale:1,_id:0 }}]"
+
+salesDF = 
+spark.read.format("mongo").option("collection","sales").option("pipeline", pipeline).option("partitioner", "MongoSinglePartitioner").load()
+```
+
+Run the cell to make sure you can connect the Atlas cluster.
+Note: If you get an error such as “MongoTimeoutException,” make sure your MongoDB Atlas cluster has the appropriate network access configured.
+
+![Notebook Result](/images/notebookresult1.png)
+
+The notebook gave us a schema view of what the data looks like. Although we could have continued to transform the data in the Mongo pipeline before it reached Spark, let’s use PySpark to transform it. Create a new cell and enter the following:
+
+```
+from pyspark.sql.window import Window
+
+from pyspark.sql import functions as F
+
+salesAgg=salesDF.withColumn('saleDate',
+F.col('saleDate').cast('date')).groupBy("saleDate").sum("totalSale").orderBy("saleDate")
+
+w = Window.orderBy('saleDate').rowsBetween(-7, 0)
+
+df = salesAgg.withColumn('rolling_average', 
+F.avg('sum(totalSale)').over(w))
+
+df.show(truncate=False)
+```
+Once the code is executed, the notebook will display our new dataframe with the rolling averages column:
+
+![Notebook Result 2](/images/notebookresult2.png)
+
+It is this cell where we will provide some additional transformation of the data such as grouping the data by saleDate and provide a summation of the totalSale per day. Once the data is in our desired format, we define a window of time as the past seven entries and then add a column to our data frame that is a rolling average of the total sales data.
+Once we have performed our analytics, we can write the data back to MongoDB for additional reporting, analytics, or archiving. In this scenario, we are writing the data back to a new collection called sales-averages:
+
+```
+df.write.format("mongo").option("collection","sales-averages").save()
+```
+![Notebook Result 3](/images/notebookresult3.png)
+
+
+
+
+
 
 
 
