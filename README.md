@@ -29,7 +29,45 @@ In this example, we will use the sales collection within the sample_supplies dat
 ![Connection String](/images/connstring.png)
 Copy the MongoDB Atlas connection string by clicking on the Connect button and selecting “Connect your application.” Copy the contents of the connection string and note the placeholders for username and password. You will have to change those to your own credentials.
 
+## 2. Analytics with MongoDB Aggregation Framework
 
+Let us consider the collection sample_supplies.sales from the sample dataset. Sample document below:
+
+![Aggregation Pipeline](/images/aggpipeline.png)
+
+Our aggregation pipeline builder provides easy interface to build the aggregation pipelines stage by stage:
+
+![Aggregation Pipeline Builder](/images/aggbuilder.png)
+
+## 3. Visualize using MongoDB Charts
+
+### Add the Data Collection as a Data Source
+In MongoDB Atlas, click on Charts on the left side
+1. Click the Data Sources tab
+2. Click New Data Source
+3. Select your Atlas Deployment in your project
+4. Click Connect
+5. Select the sample_mflix.movies collection
+6. Click Set Permissions, leave the permissions as the default
+7. Click Publish Data Source
+
+### Create a New Dashboard
+1. Click the Dashboards tab
+2. Click the New Dashboard button
+3. Enter the Title: Movie Details
+4. Click Create
+
+### Create Chart Showing Directors with the Most Awards
+1. Click Add Chart
+2. In the Data Source dropdown, select sample_supplies.sales
+3. In the Chart Type dropdown, select Column.
+4. Drag the storeLocation property from the Fields section of the Chart Builder view to the X Axis encoding channel. This tells MongoDB Charts to create a column for each storeLocation value in the dataset.
+5. In the Fields section click the items field to expand the items object and view its properties.
+6. Drag the items.price field to the Y Axis encoding channel. The Y Axis encoding channel determines which field to use for the chart's aggregation.
+7. In the Array Reductions dropdown, select Unwind array.
+8. In the Aggregate dropdown, select sum.
+
+![Chart](/images/chart.png)
 
 
 
